@@ -1,0 +1,23 @@
+DONT LOOK BACK — PRODUCTION PASS 05 TEST GUIDE
+
+1. Start in landscape. Confirm the dim ceiling lights stay on.
+2. Walk to the notice board. The interaction button should change to READ.
+3. Tap READ. Confirm the school incident report opens as an in-game panel.
+4. Close it. The objective should tell the player to look at the doll / continue.
+5. Enter Classroom 01. The first doll appears. Move close: ONLY the handheld flashlight turns off; ceiling lights remain dim/on. A metal clink plays at this moment.
+6. Move back. The handheld flashlight returns.
+7. Leave the classroom. The second doll appears in the main corridor. Move close: ONLY the handheld flashlight turns off. A second metal clink plays.
+8. Look at the corridor doll long enough to register it. Objective becomes GO TO THE END OF THE CORRIDOR. The flashlight must remain OFF after this point.
+9. Continue forward. Expect additional irregular metal clinks before the final checkpoint.
+10. Reach the final checkpoint. The ending must NOT trigger unless the corridor doll was actually seen.
+11. Final cinematic: handheld flashlight remains OFF. Do not restore it in the cinematic. The environment should stay dark except for existing dim overhead lighting.
+12. The creature should have an asymmetric, jester-like face with a very large illuminated crooked smile and uneven eyes. No gore.
+13. Final cinematic should use the same metal clink as the recurring sound, with no generic monster roar.
+14. After the cinematic, black screen and birthday reveal.
+
+Regression checks:
+- No fake staircase at the ending.
+- No decorative fake corridor doors.
+- No overhead-light blackout when the doll is approached.
+- No premature monster trigger before the corridor doll is seen.
+- Syntax: node --check game.js

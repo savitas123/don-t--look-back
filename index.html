@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>DON'T LOOK BACK</title>
+<link rel="stylesheet" href="Style.css">
+</head>
+<body>
+<div id="app">
+<section id="startScreen" class="screen active"><div class="startPanel"><div class="eyebrow">A SMALL GAME FOR SOMEONE WHO THINKS SHE ISN'T SCARED</div><h1>DON'T<br>LOOK BACK</h1><p>Headphones recommended.</p><button id="startButton">BEGIN</button></div></section>
+<section id="gameScreen" class="screen"><div id="gameCanvas"></div><div id="cinematicFade"></div><div id="vignette"></div><div id="hud"><div id="objective"></div><div id="messageBox"></div><div id="noticeStory" aria-hidden="true"><div class="noticeCard"><div class="noticeKicker">OLD SCHOOL NOTICE</div><h3>INCIDENT REPORT</h3><div class="noticeBody">The school was closed after three children stayed after dark.<br><br>They were never found. The only thing left behind was a handmade doll from Classroom 01.<br><br>The headmaster wrote that the doll was moved to the notice board every night. By morning, it was always somewhere else.<br><br>The school was emptied after a teacher was found sitting in the corridor, facing the doll. He kept repeating one sentence:<br><br><em>“It is only a doll. Do not let it know you can see it.”</em><br><br>If you hear it behind you, do not turn around. It is only a doll.<br><br>The final report says the doll is still inside the school.</div><button id="closeNotice">CLOSE</button></div></div><div id="crosshair"></div></div><div id="map"><canvas id="mapCanvas" width="150" height="105"></canvas></div><div id="controls"><div id="joystick"><div id="joystickKnob"></div></div><div id="lookHint">DRAG TO LOOK</div><button id="interactButton">USE</button><button id="flashButton">LIGHT</button></div><div id="rotateNotice">TURN YOUR PHONE SIDEWAYS</div></section>
+<section id="birthdayScreen" class="screen"><div class="birthdayContent"><div class="small">YOU SURVIVED.</div><h2>HAPPY BIRTHDAY, ZILLAH</h2><p class="birthdayMessage">I hope this year gives you plenty of reasons to smile,<br>plenty of moments worth remembering,<br>and a few surprises you actually enjoy.</p><div class="finalLine">You deserve a good one. 🤍</div></div></section>
+</div><script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script><script src="game.js"></script>
+</body></html>
