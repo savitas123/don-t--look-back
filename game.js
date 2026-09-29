@@ -299,5 +299,246 @@ function makeMonster(){
     const leg=new THREE.Mesh(new THREE.CylinderGeometry(.085,.12,1.85,9),coatMat);leg.position.set(ss*.19,.42,0);leg.rotation.z=ss*.015;g.add(leg);
     const shoe=new THREE.Mesh(new THREE.BoxGeometry(.20,.12,.48),voidMat);shoe.position.set(ss*.19,-.52,-.08);g.add(shoe);
   }
+  
+
   meshBox(.24,1.55,.08,coatMat,0,1.55,.23,0,g);
-  g.userData.eyeL=eyeL;g.userData.eyeR=eyeR;g.userData.smile=smile;g.userData.hooks=hooks
+  g.userData.eyeL=eyeL;g.userData.eyeR=eyeR;g.userData.smile=smile;g.userData.hooks=hooks;
+  g.rotation.z=-.025;world.add(g);return g;
+}
+
+function setupFlashlight(){
+  flashlight=new THREE.SpotLight(0xfff6df,7.0,30,Math.PI/5.2,.72,1.15);flashlight.castShadow=true;flashlight.shadow.mapSize.width=1024;flashlight.shadow.mapSize.height=1024;
+  flashTarget=new THREE.Object3D();scene.add(flashlight,flashTarget);flashlight.target=flashTarget;
+}
+function updateView(){
+  camera.position.copy(player.pos);camera.rotation.order='YXZ';camera.rotation.set(player.pitch,player.yaw,0);
+  const dir=new THREE.Vector3(0,0,-1).applyEuler(camera.rotation);flashlight.position.copy(camera.position);flashTarget.position.copy(camera.position).addScaledVector(dir,16);flashlight.intensity=flashOn?7.0:0;
+}
+
+function setupInput(){
+  let joyActive=false;
+  function updateJoy(e){const r=joystick.getBoundingClientRect();let x=(e.clientX-(r.left+r.width/2))/(r.width*.5),y=(e.clientY-(r.top+r.height/2))/(r.height*.5),len=Math.hypot(x,y);if(len>1){x/=len;y/=len}input.x=x;input.y=y;const max=(r.width-54)/2;knob.style.transform=`translate(${x*max}px,${y*max}px)`;}
+  function stopJoy(){joyActive=false;input.x=input.y=0;knob.style.transform='translate(0,0)';}
+  joystick.addEventListener('pointerdown',e=>{e.preventDefault();joyActive=true;joystick.setPointerCapture(e.pointerId);updateJoy(e)});
+  joystick.addEventListener('pointermove',e=>{if(joyActive){e.preventDefault();updateJoy(e)}});joystick.addEventListener('pointerup',stopJoy);joystick.addEventListener('pointercancel',stopJoy);joystick.addEventListener('lostpointercapture',stopJoy);
+  let looking=false,lastX=0,lastY=0;
+  gameCanvas.addEventListener('pointerdown',e=>{if(e.clientX<170&&e.clientY>innerHeight-180)return;if(e.clientX>innerWidth-115&&e.clientY>innerHeight-105)return;if(e.clientX>innerWidth-190&&e.clientY>innerHeight-105)return;looking=true;lastX=e.clientX;lastY=e.clientY;gameCanvas.setPointerCapture?.(e.pointerId)});
+  gameCanvas.addEventListener('pointermove',e=>{if(!looking)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;player.yaw-=dx*.006;player.pitch=THREE.MathUtils.clamp(player.pitch-dy*.004,-1.05,.8)});
+  window.addEventListener('pointerup',()=>looking=false);window.addEventListener('pointercancel',()=>looking=false);
+  interactBtn.addEventListener('pointerdown',e=>{e.preventDefault();interact()});flashBtn.addEventListener('pointerdown',e=>{e.preventDefault();flashOn=!flashOn;flashBtn.classList.toggle('buttonPressed',flashOn)});
+  window.addEventListener('keydown',e=>{if(e.key==='w'||e.key==='ArrowUp')input.y=-1;if(e.key==='s'||e.key==='ArrowDown')input.y=1;if(e.key==='a'||e.key==='ArrowLeft')input.x=-1;if(e.key==='d'||e.key==='ArrowRight')input.x=1;if(e.key==='f')flashOn=!flashOn;if(e.key==='e')interact()});
+  window.addEventListener('keyup',e=>{if(['w','ArrowUp','s','ArrowDown'].includes(e.key))input.y=0;if(['a','ArrowLeft','d','ArrowRight'].includes(e.key))input.x=0});
+}
+
+function collides(p){for(const c of colliders){if(c.doorRef&&c.doorRef.open)continue;if(p.x>c.x1-player.radius&&p.x<c.x2+player.radius&&p.z>c.z1-player.radius&&p.z<c.z2+player.radius)return true}return false;}
+function move(dt){
+  if(noticeOpen)return;
+  if(Math.hypot(input.x,input.y)<.06)return;
+  const forward=new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0),player.yaw),right=new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0),player.yaw);
+  const dir=forward.multiplyScalar(-input.y).add(right.multiplyScalar(input.x));if(dir.lengthSq()>1)dir.normalize();
+  const next=player.pos.clone().addScaledVector(dir,player.speed*dt);next.y=1.62;const xTry=player.pos.clone();xTry.x=next.x;if(!collides(xTry))player.pos.x=next.x;const zTry=player.pos.clone();zTry.z=next.z;if(!collides(zTry))player.pos.z=next.z;
+}
+function nearest(){
+  nearby=null;let best=2.15;
+  if(noticeBoard&&!noticeRead&&!noticeOpen){
+    const q=player.pos.distanceTo(new THREE.Vector3(0,1.35,5.95));
+    if(q<best){best=q;nearby={type:'notice'};}
+  }
+  for(const d of doors){const p=new THREE.Vector3(d.g.position.x,1.2,d.g.position.z),q=player.pos.distanceTo(p);if(q<best){best=q;nearby={type:'door',d}}}
+  interactBtn.style.opacity=nearby?'1':'.38';
+  interactBtn.textContent='USE';
+  const type=nearby?nearby.type:'';
+  if(type==='notice'&&lastNearbyType!=='notice'&&!noticeOpen){showMessage('Press USE to read the notice.',3000);}
+  lastNearbyType=type;
+}
+function openNotice(){
+  noticeOpen=true;const panel=$('noticeStory');if(panel){panel.classList.add('show');panel.setAttribute('aria-hidden','false');}
+  input.x=input.y=0;knob.style.transform='translate(0,0)';
+  objective.textContent='READ THE NOTICE';
+}
+function closeNotice(){
+  noticeOpen=false;noticeRead=true;storyShown=true;const panel=$('noticeStory');if(panel){panel.classList.remove('show');panel.setAttribute('aria-hidden','true');}
+  objective.textContent='LOOK AT THE DOLL';
+  showMessage('The notice is old. The doll is not.',2300);
+  // Give the player a beat to look at it before it vanishes.
+  setTimeout(()=>{if(doll&&doll.userData.boardFirst&&!boardDollGone){boardDollGone=true;hideDoll();scareStage=0;}},1900);
+}
+function interact(){
+  if(noticeOpen){closeNotice();return;}
+  if(nearby&&nearby.type==='notice'){openNotice();return;}
+  if(!nearby){showMessage('Nothing here.',900);return;}
+  const d=nearby.d;
+  if(!d.open){d.open=true;d.g.rotation.y+=Math.PI/2;showMessage('The door opens.',1000);if(d.label==='Classroom 01'){objective.textContent='ENTER CLASSROOM 01';}else objective.textContent=d.label==='ARCHIVE'?'SEARCH THE ARCHIVE':'EXPLORE THE SCHOOL';}
+}
+
+function setDollBlackout(active, center){
+  if(active===dollBlackout)return;
+  dollBlackout=active;
+  // IMPORTANT: only the handheld flashlight is disabled. The dim ceiling lights stay on.
+  flashOn=!active;
+  if(flashlight)flashlight.intensity=flashOn?7.0:0;
+}
+function placeDoll(position,rotation=0){
+  if(!doll)doll=makeDoll();doll.position.copy(position);doll.rotation.y=rotation;doll.rotation.z=-.025;doll.scale.setScalar(1.22);doll.visible=true;doll.userData.seen=false;
+}
+function hideDoll(){if(doll)doll.visible=false;}
+function dollLookedAt(){
+  if(!doll||!doll.visible)return false;
+  const to=doll.position.clone().sub(camera.position);const dist=to.length();to.normalize();const forward=new THREE.Vector3(0,0,-1).applyEuler(camera.rotation);return dist<9&&forward.dot(to)>.78;
+}
+function turnDollHead(){
+  if(!doll||!doll.userData.head)return;const worldDir=player.pos.clone().sub(doll.position);const targetYaw=Math.atan2(worldDir.x,worldDir.z);doll.userData.head.rotation.y=targetYaw-doll.rotation.y;
+}
+
+function checkFirstClassroom(){
+  if(firstClassroomEntered||!noticeRead||!boardDollGone)return;
+  const inside=player.pos.x>-16.7&&player.pos.x<-9.3&&player.pos.z>4.7&&player.pos.z<11.5;
+  const door=doors.find(d=>d.label==='Classroom 01');
+  if(inside&&door&&door.open){
+    firstClassroomEntered=true;firstDollAt=elapsed;scareStage=1;objective.textContent='LOOK AROUND';
+    placeDoll(new THREE.Vector3(-15.65,.02,10.25),Math.PI);
+  }
+}
+
+function beginFinalSequence(){
+  if(finalSequence||!corridorDollSeen)return;
+  finalSequence=true;creatureShown=true;finalSeqTime=0;
+  // The handheld flashlight must stay OFF for the entire ending. Overhead lights are untouched.
+  dollBlackout=true;flashOn=false;if(flashlight)flashlight.intensity=0;
+  setTension(false);hideDoll();objective.textContent="DON'T LOOK BACK";
+  cinematicSaved.pos.copy(player.pos);cinematicSaved.yaw=player.yaw;cinematicSaved.pitch=player.pitch;
+  if(!monster)monster=makeMonster();
+  monster.visible=true;
+  monster.position.set(0,0,-27.9);
+  monster.rotation.set(0,Math.PI,0);
+  monster.scale.setScalar(1);
+  finalCams.a.set(0,1.62,-23.8);finalCams.b.set(0,1.70,-25.2);finalCams.c.set(2.05,1.73,-26.25);
+  input.x=input.y=0;knob.style.transform='translate(0,0)';
+  gameScreen.classList.add('cinematic');
+  if(cinematicFade)cinematicFade.style.opacity='0';
+}
+
+function cinematicLookAt(pos,target){const q=new THREE.Quaternion();const temp=new THREE.Matrix4().lookAt(pos,target,new THREE.Vector3(0,1,0));q.setFromRotationMatrix(temp);camera.quaternion.slerp(q,.12);}
+function updateFinalSequence(dt){
+  finalSeqTime+=dt;
+  input.x=input.y=0;
+  const t=finalSeqTime;
+  // The final scene is intentionally quiet. The creature's only sound is an irregular metal clink.
+  if(t<1.8){
+    camera.position.lerp(finalCams.a,.10);cinematicLookAt(camera.position,new THREE.Vector3(0,1.95,-27.9));
+    if(t>1.05&&t<1.10)playSfx('metal');
+  } else if(t<4.2){
+    camera.position.lerp(finalCams.b,.065);cinematicLookAt(camera.position,new THREE.Vector3(0,1.95,-27.9));
+    if(t>2.75&&t<2.80)playSfx('metal');
+  } else if(t<5.4){
+    camera.position.copy(finalCams.b);cinematicLookAt(camera.position,new THREE.Vector3(0,1.95,-27.9));
+    if(t>4.65&&t<4.70)playSfx('metal');
+  } else if(t<7.7){
+    // First movement: small, wrong, almost too subtle to register immediately.
+    monster.position.z=-26.9;
+    camera.position.lerp(finalCams.b,.06);cinematicLookAt(camera.position,new THREE.Vector3(0,1.98,-26.9));
+    if(t>6.35&&t<6.40)playSfx('metal');
+  } else if(t<9.9){
+    camera.position.lerp(finalCams.c,.035);cinematicLookAt(camera.position,new THREE.Vector3(0,2.0,-26.75));
+    monster.position.x=Math.sin((t-7.7)*1.15)*.08;
+  } else if(t<10.9){
+    camera.position.lerp(new THREE.Vector3(1.0,1.72,-26.05),.09);cinematicLookAt(camera.position,new THREE.Vector3(0,2.02,-26.7));
+    if(t>10.25&&t<10.30)playSfx('metal');
+    if(t>10.05&&monster.userData.eyeL){monster.userData.eyeL.visible=true;monster.userData.eyeR.visible=true;}
+  } else if(t<11.55){
+    camera.position.lerp(new THREE.Vector3(.15,1.64,-25.75),.16);cinematicLookAt(camera.position,new THREE.Vector3(0,2.03,-26.55));
+    monster.position.z=-26.35;
+    if(monster.userData.smile){monster.userData.smile.visible=true;monster.userData.hooks.forEach(h=>h.visible=true);}
+  } else if(t<12.35){
+    if(cinematicFade)cinematicFade.style.opacity='1';
+  } else {
+    birthdayScreen.classList.add('active');gameScreen.classList.remove('active');setTension(false);flashlight.intensity=0;monster.visible=false;return;
+  }
+  flashlight.position.copy(camera.position);flashlight.target.position.copy(new THREE.Vector3(0,1.8,-27));flashlight.intensity=0;flashOn=false;
+}
+function initAudio(){
+  // Production sound direction: silence everywhere, with one signature metal sound used by the creature.
+  const base='';
+  window.gameAudio={metal:new Audio(base+'metal_clink.wav')};
+  window.gameAudio.metal.preload='auto';window.gameAudio.metal.volume=.56;
+  roomHum=null;tensionAudio=null;
+}
+function playSfx(kind, volume=null, rate=1){
+  const a=window.gameAudio&&window.gameAudio[kind];if(!a)return;
+  const c=a.cloneNode(true);c.volume=volume==null?a.volume:volume;c.playbackRate=rate;c.play().catch(()=>{});
+}
+function setTension(on,volume=.12){ return; }
+function playStep(){ return; }
+
+function subtleAtmosphere(){
+  // No background horror SFX. The environment carries the tension visually.
+  if(flickerLight&&Math.random()<.012){flickerLight.intensity=Math.random()<.45?.025:.13;setTimeout(()=>{if(flickerLight)flickerLight.intensity=.13},90+Math.random()*160);}
+}
+function horror(dt){
+  if(finalSequence){updateFinalSequence(dt);return;}
+  elapsed+=dt;subtleAtmosphere();checkFirstClassroom();
+  if(elapsed>2&&elapsed<2+dt)showMessage('The lights are still on.',1900);
+  if(storyShown&&elapsed>8&&elapsed<8+dt)showMessage('Find Classroom 01.',1700);
+  if(elapsed>17&&elapsed<17+dt){showMessage('There are signs someone was here recently.',2200);objective.textContent='EXPLORE THE SCHOOL';}
+
+  // Signature sound: key story beats guarantee it, while the loose beats remain irregular.
+  if(firstClassroomEntered&&scareStage===1&&doll&&doll.visible){
+    const dollDistance=player.pos.distanceTo(doll.position);
+    if(dollDistance<3.0){
+      if(!dollBlackout){
+        setDollBlackout(true,doll.position);
+        if(!firstDollClink){playSfx('metal',.48,.94);firstDollClink=true;}
+        showMessage('Your flashlight died. Move back a little if you want it back.',2600);
+        objective.textContent='STAY WITH THE DOLL';
+      }
+    }else if(dollDistance>4.6&&dollBlackout){
+      setDollBlackout(false,doll.position);showMessage('The flashlight is back.',1300);objective.textContent='LOOK AROUND';
+    }
+    if(dollLookedAt()){firstLookTime+=dt;lookedAwayTime=0;if(firstLookTime>1.5&&!doll.userData.headTurned){doll.userData.headTurned=true;turnDollHead();}}
+    else{lookedAwayTime+=dt;firstLookTime=0;}
+    if(doll.userData.headTurned&&lookedAwayTime>1.15&&!secondDollMoved){secondDollMoved=true;hideDoll();scareStage=2;objective.textContent='LEAVE CLASSROOM 01';}
+  }
+  if(scareStage===2&&secondDollMoved&&!thirdDollShown&&firstClassroomEntered){
+    const outside=player.pos.z<5.0||player.pos.x>-9.2;
+    if(outside){thirdDollShown=true;scareStage=3;placeDoll(new THREE.Vector3(0,.02,1.15),Math.PI);objective.textContent='KEEP GOING';}
+  }
+  if(thirdDollShown&&scareStage===3&&doll&&doll.visible){
+    const corridorDist=player.pos.distanceTo(doll.position);
+    if(corridorDist<3.1&&!dollBlackout){
+      setDollBlackout(true,doll.position);
+      if(!corridorDollClink){playSfx('metal',.52,1.02);corridorDollClink=true;}
+      showMessage('Your flashlight died. Move past it.',2300);objective.textContent='MOVE PAST IT';
+    }
+    // Once the second doll has been seen, the handheld flashlight stays OFF all the way to the ending.
+    if(corridorDist<9&&dollLookedAt()){
+      if(!corridorDollSeen){corridorDollSeen=true;objective.textContent='GO TO THE END OF THE CORRIDOR';showMessage('Keep going.',1500);}
+    }
+  }
+  if(corridorDollSeen&&!preFinalClink&&player.pos.z<-19){
+    playSfx('metal',.46,.90);preFinalClink=true;
+  }
+  // Extra irregular clinks make the sound part of the journey, not just the ending.
+  if(corridorDollSeen&&ambientClinkCount<4&&elapsed>=nextAmbientClink){
+    playSfx('metal',.28+Math.random()*.16,.88+Math.random()*.22);ambientClinkCount++;nextAmbientClink=elapsed+7+Math.random()*7;
+  }
+  // The final checkpoint is locked until the corridor doll has actually been seen.
+  if(corridorDollSeen&&!finalSequence&&player.pos.z<-24.0){beginFinalSequence();return;}
+  if(Math.hypot(input.x,input.y)>.15&&elapsed-lastStep>.68){lastStep=elapsed;}
+  if(Math.random()<.035&&lights.length){const l=lights[Math.floor(Math.random()*lights.length)];const old=l.intensity;l.intensity=Math.max(.02,old*.45);setTimeout(()=>{if(l)l.intensity=old},70+Math.random()*100);}
+}
+
+function showMessage(t,d=1800){messageBox.textContent=t;messageBox.classList.add('show');clearTimeout(window.msgTimer);window.msgTimer=setTimeout(()=>messageBox.classList.remove('show'),d);}
+function drawMap(){const c=mapCanvas.getContext('2d');c.clearRect(0,0,150,105);c.strokeStyle='rgba(190,190,190,.18)';c.lineWidth=2;c.strokeRect(8,8,134,89);c.beginPath();c.moveTo(75,8);c.lineTo(75,97);c.stroke();c.fillStyle='#8bb8ff';c.beginPath();c.arc(75,84,3,0,Math.PI*2);c.fill();}
+function updateMap(){const c=mapCanvas.getContext('2d');c.clearRect(0,0,150,105);c.strokeStyle='rgba(190,190,190,.18)';c.lineWidth=2;c.strokeRect(8,8,134,89);c.beginPath();c.moveTo(75,8);c.lineTo(75,97);c.stroke();const x=75+(player.pos.x/20)*63,z=84+((player.pos.z-11)/45)*72;c.fillStyle='#8bb8ff';c.beginPath();c.arc(THREE.MathUtils.clamp(x,11,139),THREE.MathUtils.clamp(z,11,94),3,0,Math.PI*2);c.fill();}
+function resize(){if(!camera||!renderer)return;const w=Math.max(1,gameCanvas.clientWidth),h=Math.max(1,gameCanvas.clientHeight);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));renderer.setSize(w,h,false);}
+function setup(){
+  scene=new THREE.Scene();scene.background=new THREE.Color(0x010202);scene.fog=new THREE.FogExp2(0x010202,.045);
+  camera=new THREE.PerspectiveCamera(68,1,.05,80);camera.rotation.order='YXZ';renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));renderer.outputEncoding=THREE.sRGBEncoding;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;gameCanvas.appendChild(renderer.domElement);clock=new THREE.Clock();
+  buildSchool();setupFlashlight();setupInput();const closeNoticeBtn=$('closeNotice');if(closeNoticeBtn)closeNoticeBtn.addEventListener('click',closeNotice);resize();drawMap();objective.textContent='EXPLORE THE SCHOOL';showMessage('The lights are still on.',2200);requestAnimationFrame(loop);
+}
+function loop(){requestAnimationFrame(loop);const dt=Math.min(.033,clock.getDelta());if(!finalSequence){move(dt);nearest();updateView();updateMap();}horror(dt);renderer.render(scene,camera);}
+
+startButton.addEventListener('click',()=>{if(started)return;started=true;initAudio();startScreen.classList.remove('active');gameScreen.classList.add('active');setTimeout(setup,30);});
+window.addEventListener('resize',resize);window.addEventListener('orientationchange',()=>setTimeout(resize,120));if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>setTimeout(resize,60));
+                                                                                                                   
